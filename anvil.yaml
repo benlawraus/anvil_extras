@@ -1,0 +1,11 @@
+services: []
+startup: {type: form, module: Demo}
+package_name: anvil_extras
+allow_embedding: false
+name: anvil_extras
+runtime_options: {version: 2, client_version: '3', server_version: python3-full}
+metadata: {}
+startup_form: Demo
+native_deps: {head_html: ''}
+db_schema: []
+renamed: true
