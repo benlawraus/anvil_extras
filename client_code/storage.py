@@ -10,10 +10,9 @@
 import pathlib
 from datetime import date, datetime
 
-from pydal import DAL, Field
-
 import anvil.js
 from anvil.js import window as _window
+from pydal import DAL, Field
 
 __version__ = "2.2.3"
 __all__ = ["local_storage", "indexed_db"]
@@ -85,7 +84,7 @@ class _Forage:
         return False
 
     def clear(self):
-        _db(_db[self._name].key).delete()
+        _db(_db[self._name]).delete()
         _db.commit()
 
 
