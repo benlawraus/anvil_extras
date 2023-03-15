@@ -24,7 +24,7 @@ if not abs_path.exists():
 abs_path = abs_path / 'databases'
 if not abs_path.exists():
     abs_path.mkdir()
-database_name = "storage" + str(datetime.utcnow())
+database_name = "browser_indexedDB" + str(datetime.utcnow())
 _db = DAL('sqlite://{}.sqlite'.format(database_name), folder=abs_path)
 
 
