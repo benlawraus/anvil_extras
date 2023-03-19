@@ -56,7 +56,10 @@ class _Forage:
 
     def getItem(self, key):
         """get an item from the store"""
-        return _db(_db[self._name].key == key).select().first()['value']
+        items = _db(_db[self._name].key == key).select()
+        if len(items) == 0:
+            raise KeyError(key)
+        return items.first()['value']
 
     def setItem(self, key, val):
         """set an item in the store"""
