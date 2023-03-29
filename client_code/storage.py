@@ -9,86 +9,96 @@
 
 import pathlib
 from datetime import date, datetime
+from anvil.users import pytest_identifier
+
+from pydal import DAL, Field
 
 import anvil.js
 from anvil.js import window as _window
-from pydal import DAL, Field
 
 __version__ = "2.2.3"
 __all__ = ["local_storage", "indexed_db"]
+
 # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 # vvvvv FOR TESTING ON LAPTOP vvvvv
+from typing import Iterable
 abs_path = pathlib.Path(__file__).parent.parent.parent / 'tests_project'
 if not abs_path.exists():
     abs_path.mkdir()
 abs_path = abs_path / 'databases'
 if not abs_path.exists():
     abs_path.mkdir()
-database_name = "browser_indexedDB" + str(datetime.utcnow())
-_db = DAL('sqlite://{}.sqlite'.format(database_name), folder=abs_path)
 
 
 class _Forage:
     INDEXEDDB = "indexeddb"
     LOCALSTORAGE = "localstorage"
+    database_name = "browser_indexedDB" + str(datetime.utcnow())
+    _db = DAL('sqlite://{}.sqlite'.format(database_name), folder=abs_path)
 
     def __init__(self, name):
         self._name = name
 
     def dropInstance(self):
-        if self._name in _db.tables:
-            _db[self._name].drop()
-            _db.commit()
+        if self._name in _Forage._db.tables:
+            _Forage._db[self._name].drop()
+            _Forage._db.commit()
 
-    @staticmethod
-    def createInstance(init_options):
+    @classmethod
+    def createInstance(cls, init_options):
         store_name = init_options["storeName"]
-        if store_name not in _db.tables:
-            _db.define_table(store_name,
-                             Field('key', type='string', default=None, unique=True),
-                             Field('value', type='json', default=None))
-            _db.commit()
+        if store_name not in cls._db.tables:
+            cls._db.define_table(store_name,
+                             Field('key', type='string', default=None),
+                             Field('value', type='json', default=None),
+                             Field('current_test', type='string', default=None))
+            cls._db.commit()
         return _Forage(store_name)
 
     def defineDriver(self, driver):
         # do not need any error handling here
         pass
 
-    def getItem(self, key):
+    @property
+    def _db_pytest_query(self):
+        return _Forage._db[self._name].current_test == pytest_identifier()
+    def _db_query(self, key):
+        return (_Forage._db[self._name].key == key) & self._db_pytest_query
+
+    def getItem(self, key)->dict:
         """get an item from the store"""
-        items = _db(_db[self._name].key == key).select()
-        if len(items) == 0:
-            raise KeyError(key)
-        return items.first()['value']
+        return _Forage._db(self._db_query(key)).select().first()['value']
 
     def setItem(self, key, val):
         """set an item in the store"""
-        _db[self._name].update_or_insert(key=key, value=val)
-        _db.commit()
+        # delete item
+        self.removeItem(key)
+        # insert item
+        _Forage._db[self._name].insert(key=key, value=val, current_test = pytest_identifier())
+        _Forage._db.commit()
 
     def removeItem(self, key):
         """remove an item from the store"""
-        _db(_db[self._name].key == key).delete()
-        _db.commit()
+        _Forage._db(self._db_query(key)).delete()
+        _Forage._db.commit()
 
-    def keys(self):
+    def keys(self)->Iterable:
         """get all keys in the store"""
-        return [row.key for row in _db().select(_db[self._name].key)]
-
-    def length(self):
+        return (row.key for row in _Forage._db(self._db_pytest_query).select(_Forage._db[self._name].key))
+    def length(self)->int:
         """get the number of items in the store"""
-        return _db(_db[self._name].key).count()
+        return _Forage._db(self._db_pytest_query).count()
 
     @staticmethod
-    def supports(feature):
+    def supports(feature)->bool:
         """check if the store supports a feature"""
         if feature:
             return True
         return False
 
     def clear(self):
-        _db(_db[self._name]).delete()
-        _db.commit()
+        _Forage._db(self._db_pytest_query).delete()
+        _Forage._db.commit()
 
 
 class _ForageModule(_Forage):
@@ -98,6 +108,7 @@ class _ForageModule(_Forage):
 _window.localforage = _ForageModule.default
 # ^^^^^ FOR TESTING ON LAPTOP ^^^^^
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 try:
     _forage = _window.localforage
 except AttributeError:
