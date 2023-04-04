@@ -19,8 +19,8 @@ from anvil.js import window as _window
 __version__ = "2.2.3"
 __all__ = ["local_storage", "indexed_db"]
 
-# vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-# vvvvv FOR TESTING ON LAPTOP vvvvv
+# vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+# FOR TESTING
 from typing import Iterable
 abs_path = pathlib.Path(__file__).parent.parent.parent / 'tests_project'
 if not abs_path.exists():
@@ -106,8 +106,8 @@ class _ForageModule(_Forage):
 
 
 _window.localforage = _ForageModule.default
-# ^^^^^ FOR TESTING ON LAPTOP ^^^^^
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# END FOR TESTING
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 try:
     _forage = _window.localforage
@@ -167,11 +167,23 @@ def _deserialize(obj):
     ob_type = type(obj)
     if ob_type is list:
         return [_deserialize(item) for item in obj]
-    elif ob_type is _Proxy and obj.__class__ == _Object:
-        # Then we're a simple proxy object
-        # keys are strings so only _deserialize the values
-        # use _Object.keys to avoid possible name conflict
-        keys = _Object.keys(obj)
+    # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    # FOR TESTING
+    simple = False
+    keys = []
+    try:
+        keys = [_ for _ in obj.keys()]
+    except AttributeError:
+        # not a object
+        simple = True
+    if not simple:
+    # elif ob_type is _Proxy and obj.__class__ == _Object:
+    #     # Then we're a simple proxy object
+    #     # keys are strings so only _deserialize the values
+    #     # use _Object.keys to avoid possible name conflict
+    #     keys = _Object.keys(obj)
+    # END FOR TESTING
+    # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         if len(keys) == 1 and keys[0].startswith(_SPECIAL):
             key = keys[0]
             return _special_deserialize(key, obj[key])
