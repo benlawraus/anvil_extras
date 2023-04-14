@@ -25,3 +25,4 @@ an anvil.works app.
 
 It is a work in progress. So far the only changes have been to:
   * client_code/storage.py
+  * client_code/augment.py
