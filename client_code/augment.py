@@ -82,13 +82,13 @@ def add_event(component: _Component, event: str) -> None:
 
 def set_event_handler(component: _Component, event: str, func: _Callable) -> None:
     """uses anvil's set_event_handler for any jquery event"""
-    add_event(component, event)
+    # add_event(component, event)
     component.set_event_handler(event, func)
 
 
 def add_event_handler(component: _Component, event: str, func: _Callable) -> None:
     """uses anvil's add_event_handler for any jquery event"""
-    add_event(component, event)
+    # add_event(component, event)
     component.add_event_handler(event, func)
 
 

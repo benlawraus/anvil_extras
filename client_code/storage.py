@@ -5,14 +5,113 @@
 #
 # This software is published at https://github.com/anvilistas/anvil-extras
 
+import pathlib
 from datetime import date, datetime
+
+from pydal import DAL, Field
 
 import anvil.js
 from anvil.js import ExternalError
 from anvil.js import window as _window
+from anvil.users import pytest_identifier
 
 __version__ = "2.5.4"
 __all__ = ["local_storage", "indexed_db"]
+
+# vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+# FOR TESTING
+from typing import Iterable
+
+abs_path = pathlib.Path(__file__).parent.parent.parent / 'tests_project'
+if not abs_path.exists():
+    abs_path.mkdir()
+abs_path = abs_path / 'databases'
+if not abs_path.exists():
+    abs_path.mkdir()
+
+
+class _Forage:
+    """A wrapper for the forage.js library. It is a singleton class."""
+    INDEXEDDB = "indexeddb"
+    LOCALSTORAGE = "localstorage"
+    database_name = "browser_indexedDB"  # + str(datetime.utcnow())
+    _db = DAL('sqlite://{}.sqlite'.format(database_name), folder=abs_path)
+
+    def __init__(self, name):
+        self._name = name
+
+    def dropInstance(self):
+        if self._name in _Forage._db.tables:
+            _Forage._db[self._name].drop()
+            _Forage._db.commit()
+
+    @classmethod
+    def createInstance(cls, init_options):
+        store_name = init_options["storeName"]
+        if store_name not in cls._db.tables:
+            cls._db.define_table(store_name,
+                                 Field('key', type='string', default=None),
+                                 Field('value', type='json', default=None),
+                                 Field('current_test', type='string', default=None))
+            cls._db.commit()
+        return _Forage(store_name)
+
+    def defineDriver(self, driver):
+        # do not need any error handling here
+        pass
+
+    @property
+    def _db_pytest_query(self):
+        return _Forage._db[self._name].current_test == pytest_identifier()
+
+    def _db_query(self, key):
+        return (_Forage._db[self._name].key == key) & self._db_pytest_query
+
+    def getItem(self, key) -> dict:
+        """get an item from the store"""
+        return _Forage._db(self._db_query(key)).select().first()['value']
+
+    def setItem(self, key, val):
+        """set an item in the store"""
+        # delete item
+        self.removeItem(key)
+        # insert item
+        _Forage._db[self._name].insert(key=key, value=val, current_test=pytest_identifier())
+        _Forage._db.commit()
+
+    def removeItem(self, key):
+        """remove an item from the store"""
+        _Forage._db(self._db_query(key)).delete()
+        _Forage._db.commit()
+
+    def keys(self) -> Iterable:
+        """get all keys in the store"""
+        return (row.key for row in _Forage._db(self._db_pytest_query).select(_Forage._db[self._name].key))
+
+    def length(self) -> int:
+        """get the number of items in the store"""
+        return _Forage._db(self._db_pytest_query).count()
+
+    @staticmethod
+    def supports(feature) -> bool:
+        """check if the store supports a feature"""
+        if feature:
+            return True
+        return False
+
+    def clear(self):
+        """clear the store"""
+        _Forage._db(self._db_pytest_query).delete()
+        _Forage._db.commit()
+
+
+class _ForageModule(_Forage):
+    default = _Forage("default")
+
+
+_window.localforage = _ForageModule.default
+# END FOR TESTING
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 try:
     _forage = _window.localforage
@@ -74,11 +173,23 @@ def _deserialize(obj):
     ob_type = type(obj)
     if ob_type in (list, _Array):
         return [_deserialize(item) for item in obj]
-    elif ob_type is _Proxy and obj.__class__ == _Object:
-        # Then we're a simple proxy object
-        # keys are strings so only _deserialize the values
-        # use _Object.keys to avoid possible name conflict
-        keys = _Object.keys(obj)
+    # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    # FOR TESTING
+    simple = False
+    keys = []
+    try:
+        keys = [_ for _ in obj.keys()]
+    except AttributeError:
+        # not a object
+        simple = True
+    if not simple:
+        # elif ob_type is _Proxy and obj.__class__ == _Object:
+        #     # Then we're a simple proxy object
+        #     # keys are strings so only _deserialize the values
+        #     # use _Object.keys to avoid possible name conflict
+        #     keys = _Object.keys(obj)
+        # END FOR TESTING
+        # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         if len(keys) == 1 and keys[0].startswith(_SPECIAL):
             key = keys[0]
             return _special_deserialize(key, obj[key])
@@ -151,6 +262,7 @@ class StorageWrapper:
         if not self._store.supports(self._driver):
             # we cn't rely on this method - it's just for browser support
             return False
+        # noinspection PyBroadException
         try:
             self._store.length()
             # call a method in the store to activate the store
